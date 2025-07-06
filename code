@@ -1,0 +1,64 @@
+#include <WiFi.h>
+#include <BlynkSimpleEsp32.h>
+#include <DHT.h>
+
+#define DHTPIN 4         // GPIO connected to DHT22 data pin
+#define DHTTYPE DHT22    // DHT 22 (AM2302)
+#define RELAY_PIN 5      // GPIO for Relay
+
+char auth[] = "<YOUR_BLYNK_AUTH_TOKEN>";
+char ssid[] = "<YOUR_WIFI_SSID>";
+char pass[] = "<YOUR_WIFI_PASSWORD>";
+
+DHT dht(DHTPIN, DHTTYPE);
+
+BlynkTimer timer;
+
+void sendSensor()
+{
+  float h = dht.readHumidity();
+  float t = dht.readTemperature();
+
+  if (isnan(h) || isnan(t)) {
+    Serial.println("Failed to read from DHT sensor!");
+    return;
+  }
+
+  Serial.print("Temperature: ");
+  Serial.print(t);
+  Serial.print(" °C, Humidity: ");
+  Serial.print(h);
+  Serial.println(" %");
+
+  Blynk.virtualWrite(V0, t);
+  Blynk.virtualWrite(V1, h);
+
+  if (t > 30) {
+    digitalWrite(RELAY_PIN, HIGH);  // Turn on fan/heater
+  } else {
+    digitalWrite(RELAY_PIN, LOW);   // Turn off
+  }
+}
+
+BLYNK_WRITE(V2) {  // Manual Relay Control from App
+  int pinValue = param.asInt();
+  digitalWrite(RELAY_PIN, pinValue);
+}
+
+void setup()
+{
+  Serial.begin(115200);
+  Blynk.begin(auth, ssid, pass);
+  dht.begin();
+
+  pinMode(RELAY_PIN, OUTPUT);
+  digitalWrite(RELAY_PIN, LOW);
+
+  timer.setInterval(2000L, sendSensor);
+}
+
+void loop()
+{
+  Blynk.run();
+  timer.run();
+}
